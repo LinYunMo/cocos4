@@ -25,7 +25,7 @@
  THE SOFTWARE.
 */
 
-import { screenAdapter } from 'pal/screen-adapter';
+import { screenAdapter, IScreenOptions } from 'pal/screen-adapter';
 import { legacyCC } from '../global-exports';
 import { Size } from '../math';
 import { settings, SettingsCategory } from '../settings';
@@ -36,14 +36,74 @@ import { PalScreenEvent } from '../../../pal/screen-adapter/enum-type';
  * @zh screen 单例对象提供简单的方法来做屏幕管理相关的工作。
  */
 export class Screen {
+    private _maxDevicePixelRatio: number | null = null;
+    private _isDprConfigurationLocked = false;
+
+    /**
+     * @en The explicitly configured startup DPR cap, or null for the platform default.
+     * This is the configured maximum, not the effective DPR; see devicePixelRatio.
+     * @zh 显式配置的启动 DPR 上限；null 表示使用平台默认策略。
+     * 此属性返回配置上限，实际生效的 DPR 请读取 devicePixelRatio。
+     */
+    public get maxDevicePixelRatio (): number | null {
+        return this._maxDevicePixelRatio;
+    }
+
+    /**
+     * @en Sets the maximum rendering DPR before Screen initialization. The value must
+     * be finite and >= 1. The effective DPR is the smaller of the platform DPR and this cap.
+     * Call from the application startup entry, for example onPostBaseInitDelegate;
+     * normal component onLoad/start is too late. Higher values may increase GPU and memory cost.
+     * @zh 在 Screen 初始化前设置渲染 DPR 上限，必须是有限且不小于 1 的数字。
+     * 实际 DPR 为平台原始值与该上限的较小值。可在启动入口的 onPostBaseInitDelegate
+     * 中调用，普通组件的 onLoad/start 阶段已过晚。提高上限可能增加 GPU 和内存开销。
+     * @throws Error if Screen initialization has started.
+     * @throws RangeError if the maximum is invalid.
+     */
+    public setMaxDevicePixelRatio (maximum: number): void {
+        this._assertDprConfigurable();
+        if (typeof maximum !== 'number' || !Number.isFinite(maximum) || maximum < 1) {
+            throw new RangeError('Maximum DPR must be a finite number >= 1.');
+        }
+        this._maxDevicePixelRatio = maximum;
+    }
+
+    /**
+     * @en Clears the pending DPR override before Screen initialization. Each platform
+     * keeps its original default policy. This does not change a running game's resolution.
+     * @zh 在 Screen 初始化前清除待应用的 DPR 覆盖，恢复各平台原有默认策略。
+     * 此接口不用于修改运行中游戏的分辨率。
+     * @throws Error if Screen initialization has started.
+     */
+    public resetMaxDevicePixelRatio (): void {
+        this._assertDprConfigurable();
+        this._maxDevicePixelRatio = null;
+    }
+
+    private _assertDprConfigurable (): void {
+        if (this._isDprConfigurationLocked) {
+            throw new Error('Maximum DPR must be configured before Screen.init().');
+        }
+    }
+
     /**
      * @internal
      */
     public init (): void {
+        this._isDprConfigurationLocked = true;
+        const maximum = this._maxDevicePixelRatio;
+        if (maximum !== null
+            && (typeof screenAdapter.rawDevicePixelRatio !== 'number' || !('maxDevicePixelRatio' in screenAdapter))) {
+            throw new Error('The installed PAL does not support startup maximum DPR. Update the PAL package and rebuild the engine.');
+        }
         const exactFitScreen = settings.querySettings(SettingsCategory.SCREEN, 'exactFitScreen') ?? true;
         const orientation = settings.querySettings(SettingsCategory.SCREEN, 'orientation') ?? 'auto';
         const isHeadlessMode = settings.querySettings(SettingsCategory.RENDERING, 'renderMode') === 3;
-        screenAdapter.init({ exactFitScreen, configOrientation: orientation, isHeadlessMode }, (): void => {
+        const options: IScreenOptions = { exactFitScreen, configOrientation: orientation, isHeadlessMode };
+        if (maximum !== null) {
+            options.maxDevicePixelRatio = maximum;
+        }
+        screenAdapter.init(options, (): void => {
             const director = legacyCC.director;
             if (!director.root?.pipeline) {
                 warnID(1220);
@@ -51,6 +111,9 @@ export class Screen {
             }
             director.root.pipeline.shadingScale = screenAdapter.resolutionScale;
         });
+        if (maximum !== null && screenAdapter.maxDevicePixelRatio !== maximum) {
+            throw new Error('PAL did not apply the configured maximum DPR. Check that the engine and PAL versions match.');
+        }
     }
 
     /**
