@@ -31,7 +31,7 @@ import { legacyCC } from '../global-exports';
 import { Size } from '../math';
 import { settings, SettingsCategory } from '../settings';
 import { error, warn, warnID } from './debug';
-import { PalScreenEvent } from '../../../pal/screen-adapter/enum-type';
+import type { PalScreenEvent } from '../../../pal/screen-adapter/enum-type';
 /**
  * @en The screen API provides an easy way to do some screen managing stuff.
  * @zh screen 单例对象提供简单的方法来做屏幕管理相关的工作。
@@ -107,14 +107,22 @@ export class Screen {
     public init (): void {
         this._isDprConfigurationLocked = true;
         const maximum = this._maxDevicePixelRatio;
+        // Native TS builds resolve PAL imports to concrete platform types.
+        // Model optional Web capabilities here without requiring non-Web adapters to implement them.
+        const dprAdapter = screenAdapter as typeof screenAdapter & {
+            readonly rawDevicePixelRatio?: number;
+            readonly maxDevicePixelRatio?: number | null;
+        };
         if (maximum !== null
-            && (typeof screenAdapter.rawDevicePixelRatio !== 'number' || !('maxDevicePixelRatio' in screenAdapter))) {
+            && (typeof dprAdapter.rawDevicePixelRatio !== 'number' || !('maxDevicePixelRatio' in dprAdapter))) {
             throw new Error('The installed PAL does not support startup maximum DPR. Update the PAL package and rebuild the engine.');
         }
         const exactFitScreen = settings.querySettings(SettingsCategory.SCREEN, 'exactFitScreen') ?? true;
         const orientation = settings.querySettings(SettingsCategory.SCREEN, 'orientation') ?? 'auto';
         const isHeadlessMode = settings.querySettings(SettingsCategory.RENDERING, 'renderMode') === 3;
-        const options: IScreenOptions = { exactFitScreen, configOrientation: orientation, isHeadlessMode };
+        const options: IScreenOptions & { maxDevicePixelRatio?: number | null } = {
+            exactFitScreen, configOrientation: orientation, isHeadlessMode,
+        };
         if (maximum !== null) {
             options.maxDevicePixelRatio = maximum;
         }
@@ -126,7 +134,7 @@ export class Screen {
             }
             director.root.pipeline.shadingScale = screenAdapter.resolutionScale;
         });
-        if (maximum !== null && screenAdapter.maxDevicePixelRatio !== maximum) {
+        if (maximum !== null && dprAdapter.maxDevicePixelRatio !== maximum) {
             throw new Error('PAL did not apply the configured maximum DPR. Check that the engine and PAL versions match.');
         }
     }
