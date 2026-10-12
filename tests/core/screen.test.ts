@@ -1,6 +1,8 @@
 import { screenAdapter } from 'pal/screen-adapter';
 import * as constants from 'internal:constants';
 import { Screen } from '../../cocos/core/platform/screen';
+import { AsyncDelegate } from '../../cocos/core/event/async-delegate';
+import * as debug from '../../cocos/core/platform/debug';
 
 const adapter = screenAdapter as unknown as {
     rawDevicePixelRatio?: number;
@@ -14,9 +16,11 @@ for (const key of platformKeys) originalFlags[key] = flags[key];
 
 describe('Screen startup maximum DPR', () => {
     let initSpy: jest.SpyInstance;
+    let warnSpy: jest.SpyInstance;
 
     beforeEach(() => {
         Object.assign(flags, { HTML5: true, NATIVE: false, MINIGAME: false, RUNTIME_BASED: false, NODEJS: false });
+        warnSpy = jest.spyOn(debug, 'warn').mockImplementation(() => {});
         // The shared test bootstrap has already initialized PAL. Override only
         // this suite's adapter boundary without resetting the running test engine.
         Object.defineProperty(adapter, 'rawDevicePixelRatio', { value: 3.25, writable: true, configurable: true });
@@ -29,6 +33,7 @@ describe('Screen startup maximum DPR', () => {
     afterEach(() => {
         Object.assign(flags, originalFlags);
         initSpy.mockRestore();
+        warnSpy.mockRestore();
         delete adapter.rawDevicePixelRatio;
         delete adapter.maxDevicePixelRatio;
     });
@@ -111,14 +116,38 @@ describe('Screen startup maximum DPR', () => {
         ['mini game', { MINIGAME: true }],
         ['runtime-based mini game', { RUNTIME_BASED: true }],
         ['Node.js', { NODEJS: true }],
-    ])('rejects configuration on %s without changing default startup', (_name, overrides) => {
+    ])('ignores configuration on %s without interrupting startup', async (_name, overrides) => {
         Object.assign(flags, overrides);
+        adapter.rawDevicePixelRatio = undefined;
+        adapter.maxDevicePixelRatio = undefined;
         const screen = new Screen();
-        expect(() => screen.setMaxDevicePixelRatio(3)).toThrow(/only supported on Web/);
-        expect(() => screen.resetMaxDevicePixelRatio()).toThrow(/only supported on Web/);
+        const originalDpr = screen.devicePixelRatio;
+        const startupDelegate = new AsyncDelegate();
+        startupDelegate.add(() => {
+            screen.setMaxDevicePixelRatio(3);
+            screen.resetMaxDevicePixelRatio();
+        });
+        // Exercise the same delegate -> Screen.init promise ordering as Game.init.
+        await expect(Promise.resolve()
+            .then(() => startupDelegate.dispatch())
+            .then(() => screen.init())).resolves.toBeUndefined();
+
+        expect(warnSpy).toHaveBeenCalledTimes(2);
         expect(screen.maxDevicePixelRatio).toBeNull();
-        expect(adapter.init).not.toHaveBeenCalled();
-        screen.init();
+        expect(screen.devicePixelRatio).toBe(originalDpr);
+        expect(adapter.init).toHaveBeenCalledTimes(1);
         expect(adapter.init.mock.calls[0][0]).not.toHaveProperty('maxDevicePixelRatio');
+
+        // Non-Web remains a no-op after initialization and skips Web-only validation.
+        expect(() => {
+            screen.setMaxDevicePixelRatio(3);
+            screen.resetMaxDevicePixelRatio();
+            screen.setMaxDevicePixelRatio(NaN);
+        }).not.toThrow();
+        expect(warnSpy).toHaveBeenCalledTimes(5);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('The call is ignored'));
+        expect(screen.maxDevicePixelRatio).toBeNull();
+        expect(screen.devicePixelRatio).toBe(originalDpr);
+        expect(adapter.init).toHaveBeenCalledTimes(1);
     });
 });

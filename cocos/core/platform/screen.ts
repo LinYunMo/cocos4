@@ -55,14 +55,18 @@ export class Screen {
      * The value must be finite and >= 1. The effective DPR is the smaller of the browser DPR and this cap.
      * Call from the application startup entry, for example onPostBaseInitDelegate;
      * normal component onLoad/start is too late. Higher values may increase GPU and memory cost.
+     * On non-Web platforms, this call logs a warning and is ignored.
      * @zh 仅支持 Web（含 WebView 中的 H5）。在 Screen 初始化前设置渲染 DPR 上限，必须是有限且不小于 1 的数字。
      * 实际 DPR 为平台原始值与该上限的较小值。可在启动入口的 onPostBaseInitDelegate
      * 中调用，普通组件的 onLoad/start 阶段已过晚。提高上限可能增加 GPU 和内存开销。
-     * @throws Error on non-Web platforms or if Screen initialization has started.
-     * @throws RangeError if the maximum is invalid.
+     * 非 Web 平台仅输出警告并忽略调用，保持原有 DPR，不中断启动。
+     * @throws Error on Web if Screen initialization has started.
+     * @throws RangeError on Web if the maximum is invalid.
      */
     public setMaxDevicePixelRatio (maximum: number): void {
-        this._assertDprConfigurable();
+        if (!this._checkDprConfigurable()) {
+            return;
+        }
         if (typeof maximum !== 'number' || !Number.isFinite(maximum) || maximum < 1) {
             throw new RangeError('Maximum DPR must be a finite number >= 1.');
         }
@@ -72,23 +76,29 @@ export class Screen {
     /**
      * @en Web only. Clears the pending DPR override before Screen initialization,
      * restoring the Web default cap of 2. This does not change a running game's resolution.
+     * On non-Web platforms, this call logs a warning and is ignored.
      * @zh 仅支持 Web。在 Screen 初始化前清除待应用的 DPR 覆盖，恢复 Web 默认上限 2。
      * 此接口不用于修改运行中游戏的分辨率。
-     * @throws Error on non-Web platforms or if Screen initialization has started.
+     * 非 Web 平台仅输出警告并忽略调用，保持原有 DPR，不中断启动。
+     * @throws Error on Web if Screen initialization has started.
      */
     public resetMaxDevicePixelRatio (): void {
-        this._assertDprConfigurable();
+        if (!this._checkDprConfigurable()) {
+            return;
+        }
         this._maxDevicePixelRatio = null;
     }
 
-    private _assertDprConfigurable (): void {
+    private _checkDprConfigurable (): boolean {
         // Match the Web PAL route; later platform overrides take precedence over HTML5.
         if (!HTML5 || NATIVE || MINIGAME || RUNTIME_BASED || NODEJS) {
-            throw new Error('Maximum DPR configuration is only supported on Web platforms.');
+            warn('Maximum DPR configuration is only supported on Web platforms. The call is ignored.');
+            return false;
         }
         if (this._isDprConfigurationLocked) {
             throw new Error('Maximum DPR must be configured before Screen.init().');
         }
+        return true;
     }
 
     /**
