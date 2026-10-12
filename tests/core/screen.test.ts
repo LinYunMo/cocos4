@@ -1,4 +1,5 @@
 import { screenAdapter } from 'pal/screen-adapter';
+import * as constants from 'internal:constants';
 import { Screen } from '../../cocos/core/platform/screen';
 
 const adapter = screenAdapter as unknown as {
@@ -6,11 +7,16 @@ const adapter = screenAdapter as unknown as {
     maxDevicePixelRatio?: number | null;
     init: jest.Mock;
 };
+const flags = constants as unknown as Record<string, boolean | undefined>;
+const platformKeys = ['HTML5', 'NATIVE', 'MINIGAME', 'RUNTIME_BASED', 'NODEJS'];
+const originalFlags: typeof flags = {};
+for (const key of platformKeys) originalFlags[key] = flags[key];
 
 describe('Screen startup maximum DPR', () => {
     let initSpy: jest.SpyInstance;
 
     beforeEach(() => {
+        Object.assign(flags, { HTML5: true, NATIVE: false, MINIGAME: false, RUNTIME_BASED: false, NODEJS: false });
         // The shared test bootstrap has already initialized PAL. Override only
         // this suite's adapter boundary without resetting the running test engine.
         Object.defineProperty(adapter, 'rawDevicePixelRatio', { value: 3.25, writable: true, configurable: true });
@@ -21,6 +27,7 @@ describe('Screen startup maximum DPR', () => {
     });
 
     afterEach(() => {
+        Object.assign(flags, originalFlags);
         initSpy.mockRestore();
         delete adapter.rawDevicePixelRatio;
         delete adapter.maxDevicePixelRatio;
@@ -96,5 +103,22 @@ describe('Screen startup maximum DPR', () => {
         const screen = new Screen();
         screen.setMaxDevicePixelRatio(3);
         expect(() => screen.init()).toThrow(/PAL did not apply/);
+    });
+
+    test.each([
+        ['non-HTML5', { HTML5: false }],
+        ['Native', { NATIVE: true }],
+        ['mini game', { MINIGAME: true }],
+        ['runtime-based mini game', { RUNTIME_BASED: true }],
+        ['Node.js', { NODEJS: true }],
+    ])('rejects configuration on %s without changing default startup', (_name, overrides) => {
+        Object.assign(flags, overrides);
+        const screen = new Screen();
+        expect(() => screen.setMaxDevicePixelRatio(3)).toThrow(/only supported on Web/);
+        expect(() => screen.resetMaxDevicePixelRatio()).toThrow(/only supported on Web/);
+        expect(screen.maxDevicePixelRatio).toBeNull();
+        expect(adapter.init).not.toHaveBeenCalled();
+        screen.init();
+        expect(adapter.init.mock.calls[0][0]).not.toHaveProperty('maxDevicePixelRatio');
     });
 });

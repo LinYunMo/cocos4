@@ -22,7 +22,7 @@ declare module 'pal/screen-adapter' {
          * Determine whether use headless renderer, which means do not support some screen operations.
          */
         isHeadlessMode: boolean;
-        /** A finite cap >= 1. Omission/null preserves the platform's existing policy. */
+        /** Web only: a finite cap >= 1. Omission/null keeps the Web default cap of 2. */
         maxDevicePixelRatio?: number | null;
     }
 
@@ -61,13 +61,15 @@ declare module 'pal/screen-adapter' {
          */
         public get isFullScreen (): boolean;
         /**
-         * The platform's original DPR before applying an explicit rendering cap.
+         * Web capability: original browser DPR before applying a rendering cap.
+         * Absent on non-Web adapters.
          */
-        public get rawDevicePixelRatio (): number;
+        public readonly rawDevicePixelRatio?: number;
         /**
-         * The explicit startup cap, or null when using the platform's default policy.
+         * Web capability: explicit startup cap, or null for the Web default.
+         * Absent on non-Web adapters.
          */
-        public get maxDevicePixelRatio (): number | null;
+        public readonly maxDevicePixelRatio?: number | null;
         /**
          * The ratio of pixel sizes:
          * the size of one CSS pixel to the size of one physical pixel.
