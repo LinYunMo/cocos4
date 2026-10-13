@@ -10,6 +10,7 @@ const adapter = screenAdapter as unknown as {
     maxDevicePixelRatio?: number | null;
     init: jest.Mock;
 };
+const originalAdapterPrototype = Object.getPrototypeOf(screenAdapter);
 const flags = constants as unknown as Record<string, boolean | undefined>;
 const platformKeys = ['HTML5', 'NATIVE', 'MINIGAME', 'RUNTIME_BASED', 'NODEJS'];
 const originalFlags: typeof flags = {};
@@ -35,11 +36,21 @@ describe('Screen startup maximum DPR setting', () => {
 
     afterEach(() => {
         Object.assign(flags, originalFlags);
+        Object.setPrototypeOf(screenAdapter, originalAdapterPrototype);
         querySpy.mockRestore();
         initSpy.mockRestore();
         warnSpy.mockRestore();
         delete adapter.maxDevicePixelRatio;
     });
+
+    function useAdapterWithoutDprCapability (): void {
+        const descriptors = Object.getOwnPropertyDescriptors(originalAdapterPrototype);
+        delete descriptors.maxDevicePixelRatio;
+        Object.setPrototypeOf(screenAdapter, Object.create(Object.getPrototypeOf(originalAdapterPrototype), descriptors));
+        delete adapter.maxDevicePixelRatio;
+        initSpy.mockImplementation(() => {});
+        expect('maxDevicePixelRatio' in screenAdapter).toBe(false);
+    }
 
     test('omitted setting preserves the adapter default without injecting a cap', () => {
         new Screen().init();
@@ -110,10 +121,15 @@ describe('Screen startup maximum DPR setting', () => {
         expect(adapter.init.mock.calls[0][0].maxDevicePixelRatio).toBe(3.25);
     });
 
-    test.each([0, -1, 0.5, NaN, Infinity, -Infinity, '3', false, {}, []])('rejects invalid setting %s before entering PAL', value => {
+    test.each([0, -1, 0.5, NaN, Infinity, -Infinity, '3', false, {}, []])('forwards %s unchanged and propagates PAL validation errors', value => {
+        const validationError = new RangeError(debug.getError(9204));
+        initSpy.mockImplementation(() => { throw validationError; });
         startupSettings.overrideSettings(SettingsCategory.SCREEN, 'maxDevicePixelRatio', value);
-        expect(() => new Screen().init()).toThrow(RangeError);
-        expect(adapter.init).not.toHaveBeenCalled();
+        let caught: unknown;
+        try { new Screen().init(); } catch (error) { caught = error; }
+        expect(caught).toBe(validationError);
+        expect(adapter.init).toHaveBeenCalledTimes(1);
+        expect(adapter.init.mock.calls[0][0].maxDevicePixelRatio).toBe(value);
         expect(adapter.maxDevicePixelRatio).toBeNull();
     });
 
@@ -126,12 +142,13 @@ describe('Screen startup maximum DPR setting', () => {
         expect(adapter.maxDevicePixelRatio).toBe(3.25);
     });
 
-    test('fails startup when PAL does not expose the applied cap', () => {
-        adapter.maxDevicePixelRatio = undefined;
-        adapter.init.mockImplementation(() => {});
+    test('allows adapters without the DPR capability to ignore the setting', () => {
+        useAdapterWithoutDprCapability();
         startupSettings.overrideSettings(SettingsCategory.SCREEN, 'maxDevicePixelRatio', 3);
-        expect(() => new Screen().init()).toThrow(debug.getError(9205));
+        expect(() => new Screen().init()).not.toThrow();
         expect(adapter.init).toHaveBeenCalledTimes(1);
+        expect(adapter.init.mock.calls[0][0].maxDevicePixelRatio).toBe(3);
+        expect(warnSpy).not.toHaveBeenCalled();
     });
 
     test('default startup does not require a configured cap readback', () => {
@@ -151,17 +168,16 @@ describe('Screen startup maximum DPR setting', () => {
         ['mini game', { MINIGAME: true }],
         ['runtime-based mini game', { RUNTIME_BASED: true }],
         ['Node.js', { NODEJS: true }],
-    ])('ignores a shared startup setting on %s without interrupting initialization', async (_name, overrides) => {
+    ])('passes the startup cap to a supporting PAL on %s without platform filtering', async (_name, overrides) => {
         Object.assign(flags, overrides);
-        adapter.maxDevicePixelRatio = undefined;
         const originalDpr = new Screen().devicePixelRatio;
         await startupSettings.init('', { screen: { maxDevicePixelRatio: 3.25 } });
         const screen = new Screen();
         expect(() => screen.init()).not.toThrow();
-        expect(warnSpy).toHaveBeenCalledTimes(1);
-        expect(warnSpy).toHaveBeenCalledWith(9203);
+        expect(warnSpy).not.toHaveBeenCalled();
         expect(screen.devicePixelRatio).toBe(originalDpr);
-        expect(adapter.init.mock.calls[0][0]).not.toHaveProperty('maxDevicePixelRatio');
+        expect(adapter.init.mock.calls[0][0].maxDevicePixelRatio).toBe(3.25);
+        expect(adapter.maxDevicePixelRatio).toBe(3.25);
     });
 
     test('does not warn for an unconfigured non-Web platform', () => {
@@ -171,11 +187,12 @@ describe('Screen startup maximum DPR setting', () => {
         expect(adapter.init.mock.calls[0][0]).not.toHaveProperty('maxDevicePixelRatio');
     });
 
-    test('non-Web ignores the setting before applying Web-only validation', () => {
+    test('an unsupported PAL can ignore invalid input without engine validation or warnings', () => {
         flags.NATIVE = true;
+        useAdapterWithoutDprCapability();
         startupSettings.overrideSettings(SettingsCategory.SCREEN, 'maxDevicePixelRatio', NaN);
         expect(() => new Screen().init()).not.toThrow();
-        expect(adapter.init.mock.calls[0][0]).not.toHaveProperty('maxDevicePixelRatio');
-        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(adapter.init.mock.calls[0][0].maxDevicePixelRatio).toBeNaN();
+        expect(warnSpy).not.toHaveBeenCalled();
     });
 });

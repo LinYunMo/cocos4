@@ -3226,10 +3226,6 @@ Cannot access game frame or container.
 
 Setting window size is not supported.
 
-### 9203
-
-Maximum DPR configuration is only supported on Web platforms. The setting is ignored.
-
 ### 9204
 
 maxDevicePixelRatio, when specified, must be a finite number >= 1.

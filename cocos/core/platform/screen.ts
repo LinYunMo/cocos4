@@ -25,7 +25,6 @@
  THE SOFTWARE.
 */
 
-import { HTML5, MINIGAME, NATIVE, NODEJS, RUNTIME_BASED } from 'internal:constants';
 import { screenAdapter, IScreenOptions } from 'pal/screen-adapter';
 import { legacyCC } from '../global-exports';
 import { Size } from '../math';
@@ -63,19 +62,8 @@ export class Screen {
      * @internal
      */
     public init (): void {
-        const configuredMaximum = settings.querySettings<unknown>(SettingsCategory.SCREEN, 'maxDevicePixelRatio') ?? null;
-        let maximum: number | null = null;
-        if (configuredMaximum !== null) {
-            // Match the Web PAL route; later platform overrides take precedence over HTML5.
-            if (!HTML5 || NATIVE || MINIGAME || RUNTIME_BASED || NODEJS) {
-                warnID(9203);
-            } else {
-                if (typeof configuredMaximum !== 'number' || !Number.isFinite(configuredMaximum) || configuredMaximum < 1) {
-                    throw new RangeError(getError(9204));
-                }
-                maximum = configuredMaximum;
-            }
-        }
+        // PAL decides whether to consume the setting and validates its value.
+        const maximum = settings.querySettings<number>(SettingsCategory.SCREEN, 'maxDevicePixelRatio') ?? null;
         const exactFitScreen = settings.querySettings(SettingsCategory.SCREEN, 'exactFitScreen') ?? true;
         const orientation = settings.querySettings(SettingsCategory.SCREEN, 'orientation') ?? 'auto';
         const isHeadlessMode = settings.querySettings(SettingsCategory.RENDERING, 'renderMode') === 3;
@@ -93,9 +81,11 @@ export class Screen {
             }
             director.root.pipeline.shadingScale = screenAdapter.resolutionScale;
         });
-        // The property check also narrows concrete non-Web adapter types in Native TS builds.
+        // Only adapters exposing this capability are expected to apply the setting.
+        // The property check also narrows concrete adapter types in Native TS builds.
         if (maximum !== null
-            && (!('maxDevicePixelRatio' in screenAdapter) || screenAdapter.maxDevicePixelRatio !== maximum)) {
+            && 'maxDevicePixelRatio' in screenAdapter
+            && screenAdapter.maxDevicePixelRatio !== maximum) {
             throw new Error(getError(9205));
         }
     }
