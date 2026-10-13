@@ -63,14 +63,14 @@ export class Screen {
      */
     public init (): void {
         // PAL decides whether to consume the setting and validates its value.
-        const maximum = settings.querySettings<number>(SettingsCategory.SCREEN, 'maxDevicePixelRatio') ?? null;
+        const maximum = settings.querySettings<number>(SettingsCategory.SCREEN, 'maxDevicePixelRatio');
         const exactFitScreen = settings.querySettings(SettingsCategory.SCREEN, 'exactFitScreen') ?? true;
         const orientation = settings.querySettings(SettingsCategory.SCREEN, 'orientation') ?? 'auto';
         const isHeadlessMode = settings.querySettings(SettingsCategory.RENDERING, 'renderMode') === 3;
         const options: IScreenOptions & { maxDevicePixelRatio?: number | null } = {
             exactFitScreen, configOrientation: orientation, isHeadlessMode,
         };
-        if (maximum !== null) {
+        if (maximum != null) {
             options.maxDevicePixelRatio = maximum;
         }
         screenAdapter.init(options, (): void => {
@@ -83,7 +83,7 @@ export class Screen {
         });
         // Only adapters exposing this capability are expected to apply the setting.
         // The property check also narrows concrete adapter types in Native TS builds.
-        if (maximum !== null
+        if (maximum != null
             && 'maxDevicePixelRatio' in screenAdapter
             && screenAdapter.maxDevicePixelRatio !== maximum) {
             throw new Error(getError(9205));
