@@ -30,92 +30,51 @@ import { screenAdapter, IScreenOptions } from 'pal/screen-adapter';
 import { legacyCC } from '../global-exports';
 import { Size } from '../math';
 import { settings, SettingsCategory } from '../settings';
-import { error, warn, warnID } from './debug';
+import { error, getError, warn, warnID } from './debug';
 import type { PalScreenEvent } from '../../../pal/screen-adapter/enum-type';
+
+/**
+ * @en Presets for the Web startup setting `screen.maxDevicePixelRatio`.
+ * Store the preset's numeric value or any finite number >= 1 in the startup settings.
+ * An omitted or null setting keeps the default cap of 2. Effective DPR never exceeds the browser DPR.
+ * Configure before Screen initialization; changing settings afterward does not resize the running game.
+ * Non-Web platforms ignore this setting. Higher caps increase pixel-related rendering costs.
+ * @zh Web 启动配置 `screen.maxDevicePixelRatio` 的预设档位。
+ * 在启动配置中保存预设的数值或任意有限且 >=1 的数字。
+ * 未配置或为 null 时保留默认上限 2，实际 DPR 不超过浏览器 DPR。
+ * 需在 Screen 初始化前配置，之后修改 settings 不会调整运行中游戏的分辨率。
+ * 非 Web 平台忽略该配置；提高上限会增加像素相关的渲染开销。
+ */
+export enum MaxDPR {
+    /** @en Cap DPR at 1 to reduce rendering cost. @zh 上限为 1，优先降低渲染开销。 */
+    Performance = 1,
+    /** @en Cap DPR at 2, matching the existing default. @zh 上限为 2，与现有默认策略一致。 */
+    Balanced = 2,
+    /** @en Cap DPR at 4 for higher-density rendering. @zh 上限为 4，允许更高密度渲染。 */
+    Quality = 4,
+}
+
 /**
  * @en The screen API provides an easy way to do some screen managing stuff.
  * @zh screen 单例对象提供简单的方法来做屏幕管理相关的工作。
  */
 export class Screen {
-    private _maxDevicePixelRatio: number | null = null;
-    private _isDprConfigurationLocked = false;
-
-    /**
-     * @en The explicitly configured Web startup DPR cap, or null when unconfigured.
-     * This is the configured maximum, not the effective DPR; see devicePixelRatio.
-     * @zh 显式配置的 Web 启动 DPR 上限；null 表示未配置，非 Web 平台始终为 null。
-     * 此属性返回配置上限，实际生效的 DPR 请读取 devicePixelRatio。
-     */
-    public get maxDevicePixelRatio (): number | null {
-        return this._maxDevicePixelRatio;
-    }
-
-    /**
-     * @en Web only (including H5 in a WebView). Sets the maximum rendering DPR before Screen initialization.
-     * The value must be finite and >= 1. The effective DPR is the smaller of the browser DPR and this cap.
-     * Call from the application startup entry, for example onPostBaseInitDelegate;
-     * normal component onLoad/start is too late. Higher values may increase GPU and memory cost.
-     * On non-Web platforms, this call logs a warning and is ignored.
-     * @zh 仅支持 Web（含 WebView 中的 H5）。在 Screen 初始化前设置渲染 DPR 上限，必须是有限且不小于 1 的数字。
-     * 实际 DPR 为平台原始值与该上限的较小值。可在启动入口的 onPostBaseInitDelegate
-     * 中调用，普通组件的 onLoad/start 阶段已过晚。提高上限可能增加 GPU 和内存开销。
-     * 非 Web 平台仅输出警告并忽略调用，保持原有 DPR，不中断启动。
-     * @throws Error on Web if Screen initialization has started.
-     * @throws RangeError on Web if the maximum is invalid.
-     */
-    public setMaxDevicePixelRatio (maximum: number): void {
-        if (!this._checkDprConfigurable()) {
-            return;
-        }
-        if (typeof maximum !== 'number' || !Number.isFinite(maximum) || maximum < 1) {
-            throw new RangeError('Maximum DPR must be a finite number >= 1.');
-        }
-        this._maxDevicePixelRatio = maximum;
-    }
-
-    /**
-     * @en Web only. Clears the pending DPR override before Screen initialization,
-     * restoring the Web default cap of 2. This does not change a running game's resolution.
-     * On non-Web platforms, this call logs a warning and is ignored.
-     * @zh 仅支持 Web。在 Screen 初始化前清除待应用的 DPR 覆盖，恢复 Web 默认上限 2。
-     * 此接口不用于修改运行中游戏的分辨率。
-     * 非 Web 平台仅输出警告并忽略调用，保持原有 DPR，不中断启动。
-     * @throws Error on Web if Screen initialization has started.
-     */
-    public resetMaxDevicePixelRatio (): void {
-        if (!this._checkDprConfigurable()) {
-            return;
-        }
-        this._maxDevicePixelRatio = null;
-    }
-
-    private _checkDprConfigurable (): boolean {
-        // Match the Web PAL route; later platform overrides take precedence over HTML5.
-        if (!HTML5 || NATIVE || MINIGAME || RUNTIME_BASED || NODEJS) {
-            warn('Maximum DPR configuration is only supported on Web platforms. The call is ignored.');
-            return false;
-        }
-        if (this._isDprConfigurationLocked) {
-            throw new Error('Maximum DPR must be configured before Screen.init().');
-        }
-        return true;
-    }
-
     /**
      * @internal
      */
     public init (): void {
-        this._isDprConfigurationLocked = true;
-        const maximum = this._maxDevicePixelRatio;
-        // Native TS builds resolve PAL imports to concrete platform types.
-        // Model optional Web capabilities here without requiring non-Web adapters to implement them.
-        const dprAdapter = screenAdapter as typeof screenAdapter & {
-            readonly rawDevicePixelRatio?: number;
-            readonly maxDevicePixelRatio?: number | null;
-        };
-        if (maximum !== null
-            && (typeof dprAdapter.rawDevicePixelRatio !== 'number' || !('maxDevicePixelRatio' in dprAdapter))) {
-            throw new Error('The installed PAL does not support startup maximum DPR. Update the PAL package and rebuild the engine.');
+        const configuredMaximum = settings.querySettings<unknown>(SettingsCategory.SCREEN, 'maxDevicePixelRatio') ?? null;
+        let maximum: number | null = null;
+        if (configuredMaximum !== null) {
+            // Match the Web PAL route; later platform overrides take precedence over HTML5.
+            if (!HTML5 || NATIVE || MINIGAME || RUNTIME_BASED || NODEJS) {
+                warnID(9203);
+            } else {
+                if (typeof configuredMaximum !== 'number' || !Number.isFinite(configuredMaximum) || configuredMaximum < 1) {
+                    throw new RangeError(getError(9204));
+                }
+                maximum = configuredMaximum;
+            }
         }
         const exactFitScreen = settings.querySettings(SettingsCategory.SCREEN, 'exactFitScreen') ?? true;
         const orientation = settings.querySettings(SettingsCategory.SCREEN, 'orientation') ?? 'auto';
@@ -134,8 +93,10 @@ export class Screen {
             }
             director.root.pipeline.shadingScale = screenAdapter.resolutionScale;
         });
-        if (maximum !== null && dprAdapter.maxDevicePixelRatio !== maximum) {
-            throw new Error('PAL did not apply the configured maximum DPR. Check that the engine and PAL versions match.');
+        // The property check also narrows concrete non-Web adapter types in Native TS builds.
+        if (maximum !== null
+            && (!('maxDevicePixelRatio' in screenAdapter) || screenAdapter.maxDevicePixelRatio !== maximum)) {
+            throw new Error(getError(9205));
         }
     }
 

@@ -61,11 +61,6 @@ declare module 'pal/screen-adapter' {
          */
         public get isFullScreen (): boolean;
         /**
-         * Web capability: original browser DPR before applying a rendering cap.
-         * Absent on non-Web adapters.
-         */
-        public readonly rawDevicePixelRatio?: number;
-        /**
          * Web capability: explicit startup cap, or null for the Web default.
          * Absent on non-Web adapters.
          */
