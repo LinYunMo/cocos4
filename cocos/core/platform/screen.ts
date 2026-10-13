@@ -174,7 +174,11 @@ export class Screen {
      * @return {Promise|undefined}
      * @deprecated since v3.3, please use `screen.requestFullScreen(): Promise<void>` instead.
      */
-    public requestFullScreen (element: HTMLElement, onFullScreenChange?: (this: Document, ev: any) => any, onFullScreenError?: (this: Document, ev: any) => any): Promise<any> | undefined;
+    public requestFullScreen (
+        element: HTMLElement,
+        onFullScreenChange?: (this: Document, ev: any) => any,
+        onFullScreenError?: (this: Document, ev: any) => any,
+    ): Promise<any> | undefined;
     /**
      * @en Request to enter full screen mode.
      * Many browsers forbid to enter full screen mode without an user intended interaction.
@@ -187,7 +191,11 @@ export class Screen {
      * @return {Promise}
      */
     public requestFullScreen (): Promise<void>;
-    public requestFullScreen (element?: HTMLElement, onFullScreenChange?: (this: Document, ev?: any) => any, onFullScreenError?: (this: Document, ev?: any) => any): Promise<any> {
+    public requestFullScreen (
+        element?: HTMLElement,
+        onFullScreenChange?: (this: Document, ev?: any) => any,
+        onFullScreenError?: (this: Document, ev?: any) => any,
+    ): Promise<any> {
         if (arguments.length > 0) {
             warnID(1400, 'screen.requestFullScreen(element, onFullScreenChange?, onFullScreenError?)', 'screen.requestFullScreen(): Promise');
         }
