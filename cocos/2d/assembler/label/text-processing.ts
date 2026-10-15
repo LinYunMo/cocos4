@@ -45,6 +45,7 @@ import {
     safeMeasureText,
 } from '../../utils/text-utils';
 import type { Batcher2D } from '../../renderer/batcher-2d';
+import { buildFontDesc } from '../../utils/font-family';
 
 const Alignment = [
     'left', // macro.TextAlignment.LEFT
@@ -261,17 +262,7 @@ export class TextProcessing {
 
     // can cache
     private _getFontDesc (fontSize: number, fontFamily: string, isBold: boolean, isItalic: boolean): string {
-        let fontDesc = `${fontSize.toString()}px `;
-        fontDesc += fontFamily;
-        if (isBold) {
-            fontDesc = `bold ${fontDesc}`;
-        }
-
-        if (isItalic) {
-            fontDesc = `italic ${fontDesc}`;
-        }
-
-        return fontDesc;
+        return buildFontDesc(fontSize, fontFamily, isBold, isItalic);
     }
 
     // can cache
