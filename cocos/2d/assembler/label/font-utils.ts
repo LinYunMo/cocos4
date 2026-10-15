@@ -32,7 +32,7 @@ import { safeMeasureText, BASELINE_RATIO, MIDDLE_RATIO, getBaselineOffset, getSy
 import { director, DirectorEvent } from '../../../game/director';
 import { ccwindow } from '../../../core/global-exports';
 import { TextureBase } from '../../../asset/assets/texture-base';
-import { CssFontFamily, DEFAULT_FONT_FAMILY } from '../../utils/font-family';
+import { buildFontDesc, CssFontFamily, DEFAULT_FONT_FAMILY } from '../../utils/font-family';
 
 export interface ISharedLabelData {
     canvas: HTMLCanvasElement;
@@ -195,10 +195,7 @@ class LetterTexture {
         // Add a white background to avoid black edges.
         context.fillStyle = _backgroundStyle;
         context.fillRect(0, 0, width, height);
-        context.font = labelInfo.fontDesc.replace(
-            /(\d+)(\.\d+)?(px|em|rem|pt)/g,
-            (w, m: string, n: string, u: string) => (+m * fontScale + (+n || 0) * fontScale).toString() + u,
-        );
+        context.font = buildFontDesc(labelInfo.fontSize * fontScale, labelInfo.fontFamily);
 
         const fontSize = labelInfo.fontSize * fontScale;
         const startX = width / 2;

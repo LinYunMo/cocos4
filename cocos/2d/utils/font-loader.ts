@@ -24,7 +24,6 @@
 
 import { warnID } from '../../core';
 import { buildFontDesc, quoteFontFamily } from './font-family';
-import { safeMeasureText } from './text-utils';
 import downloader from '../../asset/asset-manager/downloader';
 import factory from '../../asset/asset-manager/factory';
 import { TTFFont } from '../assets/ttf-font';
@@ -95,7 +94,8 @@ function checkFontLoaded (): void {
 
         const oldWidth = fontLoadHandle.refWidth;
         _canvasContext!.font = fontLoadHandle.fontDesc;
-        const newWidth = safeMeasureText(_canvasContext!, _testString, fontLoadHandle.fontDesc);
+        // Font availability changes while loading; do not cache fallback-font metrics.
+        const newWidth = _canvasContext!.measureText(_testString).width;
         // loaded successfully
         if (oldWidth !== newWidth) {
             _loadingFonts.splice(i, 1);
@@ -193,7 +193,8 @@ export function loadFont (url: string, options: Record<string, any>, onComplete:
     if (useNativeCheck()) {
         nativeCheckFontLoaded(Date.now(), fontFamilyName, fontDesc, onComplete);
     } else {
-        const refWidth = safeMeasureText(_canvasContext!, _testString, fontDesc);
+        _canvasContext!.font = fontDesc;
+        const refWidth = _canvasContext!.measureText(_testString).width;
         // Save loading font
         const fontLoadHandle = {
             fontFamilyName,
