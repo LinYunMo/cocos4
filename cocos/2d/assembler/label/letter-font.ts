@@ -26,7 +26,7 @@ import type { Label } from '../../components';
 import { IAssembler } from '../../renderer/base';
 import { BmfontUtils } from './bmfontUtils';
 import { shareLabelInfo, LetterAtlas, computeHash, LetterRenderTexture } from './font-utils';
-import { buildFontDesc, getCanvasFontFamily } from '../../utils/font-family';
+import { buildFontDesc, CssFontFamily, getCanvasFontFamily } from '../../utils/font-family';
 
 const _atlasWidth = 1024;
 const _atlasHeight = 1024;
@@ -60,7 +60,7 @@ export class LetterFont extends BmfontUtils {
         }
     }
 
-    protected _getFontFamily (comp: Label): string {
+    protected _getFontFamily (comp: Label): CssFontFamily {
         return getCanvasFontFamily(comp);
     }
 

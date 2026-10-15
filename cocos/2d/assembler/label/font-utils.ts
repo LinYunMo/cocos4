@@ -32,6 +32,7 @@ import { safeMeasureText, BASELINE_RATIO, MIDDLE_RATIO, getBaselineOffset, getSy
 import { director, DirectorEvent } from '../../../game/director';
 import { ccwindow } from '../../../core/global-exports';
 import { TextureBase } from '../../../asset/assets/texture-base';
+import { CssFontFamily, DEFAULT_FONT_FAMILY } from '../../utils/font-family';
 
 export interface ISharedLabelData {
     canvas: HTMLCanvasElement;
@@ -102,7 +103,7 @@ interface ILabelInfo {
     fontSize: number;
     lineHeight: number;
     hash: string;
-    fontFamily: string;
+    fontFamily: CssFontFamily;
     fontDesc: string;
     hAlign: number;
     vAlign: number;
@@ -425,7 +426,7 @@ export interface IShareLabelInfo {
     hAlign: number;
     vAlign: number;
     hash: string;
-    fontFamily: string;
+    fontFamily: CssFontFamily;
     fontDesc: string;
     color: Color;
     isOutlined: boolean;
@@ -441,7 +442,7 @@ export const shareLabelInfo: IShareLabelInfo = {
     hAlign: 0,
     vAlign: 0,
     hash: '',
-    fontFamily: '',
+    fontFamily: DEFAULT_FONT_FAMILY,
     fontDesc: 'Arial',
     color: Color.WHITE.clone(),
     isOutlined: false,

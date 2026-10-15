@@ -22,34 +22,44 @@
  THE SOFTWARE.
 */
 
+/** A CSS family expression, distinct from an asset's raw font name. */
+export type CssFontFamily = string & { readonly __cssFontFamily: unique symbol };
+
+export const DEFAULT_FONT_FAMILY = 'Arial' as CssFontFamily;
+
+/** Serialize one raw family name as a CSS string, preserving literal quotes and commas. */
+export function quoteFontFamily (name: string): CssFontFamily {
+    let result = '"';
+    for (const character of name) {
+        const code = character.codePointAt(0)!;
+        if (code === 0 || (code >= 0xD800 && code <= 0xDFFF)) {
+            result += '\uFFFD';
+        } else if (code <= 0x1F || code === 0x7F) {
+            result += `\\${code.toString(16)} `;
+        } else if (character === '"' || character === '\\') {
+            result += `\\${character}`;
+        } else {
+            result += character;
+        }
+    }
+    return `${result}"` as CssFontFamily;
+}
+
 interface FontFamilySource {
     readonly useSystemFont: boolean;
     readonly fontFamily: string;
     readonly font: { readonly _nativeAsset: unknown } | null;
 }
 
-/** Select the existing font family for both TTF and character rendering. */
-export function getCanvasFontFamily (source: FontFamilySource): string {
-    let family = 'Arial';
-    if (!source.useSystemFont) {
-        if (source.font) {
-            family = source.font._nativeAsset as string || 'Arial';
-        }
-    } else {
-        family = source.fontFamily || 'Arial';
-    }
-    return family;
+/** Resolve at the component boundary, before measurement, drawing or CSS assignment. */
+export function getCanvasFontFamily (source: FontFamilySource): CssFontFamily {
+    const system = source.useSystemFont;
+    const value = system ? source.fontFamily : source.font?._nativeAsset;
+    const name = typeof value === 'string' && value ? value : DEFAULT_FONT_FAMILY;
+    return system ? name as CssFontFamily : quoteFontFamily(name);
 }
 
-/** Build the shared font description without changing family or style semantics. */
-export function buildFontDesc (size: number, family: string, bold = false, italic = false): string {
-    let description = `${size.toString()}px `;
-    description += family;
-    if (bold) {
-        description = `bold ${description}`;
-    }
-    if (italic) {
-        description = `italic ${description}`;
-    }
-    return description;
+/** Family is already serialized: changing size or style must never quote it again. */
+export function buildFontDesc (size: number, family: CssFontFamily, bold = false, italic = false): string {
+    return `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${size}px ${family}`;
 }

@@ -31,7 +31,7 @@ import type { TextStyle } from './text-style';
 import type { TextLayout } from './text-layout';
 import { view } from '../../../ui/view';
 import { approx } from '../../../core';
-import { getCanvasFontFamily } from '../../utils/font-family';
+import { CssFontFamily, getCanvasFontFamily } from '../../utils/font-family';
 
 const Overflow = Label.Overflow;
 
@@ -193,7 +193,7 @@ export class TTFUtils {
         // no needs to update uv data
     }
 
-    _updateFontFamily (comp: Label): string {
+    _updateFontFamily (comp: Label): CssFontFamily {
         return getCanvasFontFamily(comp);
     }
 
