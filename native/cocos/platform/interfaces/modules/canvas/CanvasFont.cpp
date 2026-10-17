@@ -24,7 +24,9 @@
 
 #include "platform/interfaces/modules/canvas/CanvasFont.h"
 
+#include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <regex>
 #include <string_view>
 
@@ -257,7 +259,21 @@ CanvasFont parseCanvasFont(const std::string &font) {
     if (compatible.family == family) {
         return compatible;
     }
-    return parseLegacyCanvasFont(font);
+    auto fallback = parseLegacyCanvasFont(font);
+#if CC_PLATFORM == CC_PLATFORM_MACOS || CC_PLATFORM == CC_PLATFORM_IOS || CC_PLATFORM == CC_PLATFORM_QNX
+    // These platforms used to lose the size when the family was rejected.
+    // Recover it only for complete quoted families with an engine-supported
+    // style prefix. Keep the fallback family and existing style flags intact.
+    static const std::regex STYLE_PREFIX(R"(\s*(?:(?:normal|bold|italic|oblique|small-caps)\s+)*)", std::regex::icase);
+    if (std::regex_match(font.cbegin(), font.cbegin() + match.position(1), STYLE_PREFIX)) {
+        const auto size = static_cast<float>(atof(match[1].str().c_str()));
+        // Native backends may narrow sizes to int. Do not recover unsafe values.
+        if (std::isfinite(size) && size >= 0.F && static_cast<double>(size) <= std::numeric_limits<int>::max()) {
+            fallback.size = size;
+        }
+    }
+#endif
+    return fallback;
 }
 
 } // namespace cc::detail
