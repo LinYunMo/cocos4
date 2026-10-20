@@ -52,6 +52,23 @@ describe('font family serialization', () => {
         expect(getCanvasFontFamily({ useSystemFont: false, fontFamily: '', font: { _nativeAsset: null } })).toBe('"Arial"');
     });
 
+    test('explicitly serializes legacy raw aliases without conflating literal quotes with CSS syntax', () => {
+        const rawAliases = ['Example_LABEL', '"Example_LABEL"', '"My Font_LABEL"'];
+        const descriptions = rawAliases.map((rawAlias) => {
+            const source = { useSystemFont: false, fontFamily: 'Arial', font: { _nativeAsset: rawAlias } };
+            // A migrated manual caller uses the original registered alias, not its old ctx.font text.
+            const migrated = buildFontDesc(40, quoteFontFamily(rawAlias));
+            expect(migrated).toBe(buildFontDesc(40, getCanvasFontFamily(source)));
+            expect(source.font._nativeAsset).toBe(rawAlias);
+            return migrated;
+        });
+        expect(descriptions).toEqual([
+            '40px "Example_LABEL"',
+            '40px "\\"Example_LABEL\\""',
+            '40px "\\"My Font_LABEL\\""',
+        ]);
+    });
+
     test('size and style changes do not re-quote the family', () => {
         const family = quoteFontFamily('Demo12px');
         expect(buildFontDesc(40, family)).toBe('40px "Demo12px"');

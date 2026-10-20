@@ -39,6 +39,8 @@ struct CanvasFont {
 };
 
 // Internal native Canvas parsing, including the existing per-platform fallbacks.
+// Family interpretation must not depend on the font registry. Callers serialize raw
+// asset aliases once as CSS strings, including any literal quotes in the alias.
 CC_DLL CanvasFont parseCanvasFont(const std::string &font);
 
 } // namespace cc::detail
