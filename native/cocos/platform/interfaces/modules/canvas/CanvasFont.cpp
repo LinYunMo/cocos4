@@ -255,7 +255,7 @@ CanvasFont parseCanvasFont(const std::string &font) {
     // Use it only when the old platform parser recognizes that complete alias;
     // partial matches and unsupported names keep the original fallback behavior.
     const auto legacyDescription = font.substr(0, static_cast<size_t>(match.position(4))) + family;
-    const auto compatible = parseLegacyCanvasFont(legacyDescription);
+    auto compatible = parseLegacyCanvasFont(legacyDescription);
     if (compatible.family == family) {
         return compatible;
     }
